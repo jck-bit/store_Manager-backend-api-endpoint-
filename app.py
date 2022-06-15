@@ -1,3 +1,4 @@
+from crypt import methods
 from flask import Flask, jsonify, request, make_response
 import uuid
 from flask_sqlalchemy import SQLAlchemy
@@ -20,17 +21,11 @@ class Attendant(db.Model):
     password = db.Column(db.String(100), nullable=False)
     admin = db.Column(db.Boolean, default=False)
 
-# class Products(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     text = db.Column(db.String(50))
-#     present = db.Column(db.Boolean)
-#     user_id = db.Column(db.Integer)
-
-class Todo(db.Model):
-    id = db.Column(db.Integer, primary_key = True)
-    text = db.Column(db.String(50))
-    complete = db.Column(db.Boolean)
-    user_id = db.Column(db.Integer)
+class Inventory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), nullable=False)
+    amount = db.Column(db.String(20), nullable=False)
+    user_id = db.column(db.Integer)
 
 #token authentication for the api
 def token_required(f):
@@ -68,6 +63,7 @@ def get_one_attendant(public_id):
     attendant_data['admin'] = attendant.admin
     
     return jsonify({'attendant': attendant_data})
+
 
 @app.route('/attendant', methods=['GET'])
 def get_all_attendants():
@@ -123,7 +119,6 @@ def delete_attendant(current_attendant,public_id):
 
     return jsonify({'message': 'Attendant deleted'})
 
-
 #login route for attendants 
 @app.route('/login')
 def login():
@@ -141,35 +136,62 @@ def login():
 
     return make_response('Could not verify', 401, {'WWW-Authenticate': 'Basic realm="Login required"'})
 
-@app.route('/product', methods=['GET'])
-def get_all_products():
-    return ''
- 
-@app.route('/product/<product_id>', methods=['GET'])
-def get_one_product():
-    return ''
 
-# @app.route('/product', methods=['POST'])
-# #create a product(requires a token) and return the product
-# @token_required
-# def create_product(current_attendant):
-#     data = request.get_json()
-#     new_product = Products(text=data['text'], present=False, user_id=current_attendant.id)
-#     db.session.add(new_product)
-#     db.session.commit()
+@app.route('/inventory', methods =['GET'])
 
-    # return jsonify({'message': 'Product created'})
+def get_all_inventories():
+    inventorys = Inventory.query.all()
 
-#create a new todo(requires token in header)
-@app.route('/todo', methods=['POST'])
+    output = []
+    
+    for inventory in inventorys:
+        inventory_data = {}
+        inventory_data['id'] = inventory.id
+        inventory_data['name'] = inventory.name
+        inventory_data['amount'] = inventory.amount
+
+        output.append(inventory_data)
+    
+    return jsonify({'inventory': output})
+@app.route('/inventory/<inventory_id>', methods=['GET'])
+def get_one_inventory(inventory_id):
+    inventory = Inventory.query.filter_by(id=inventory_id).first()
+
+    if not inventory:
+        return jsonify({'message': 'Inventory not found'})
+    inventory_data = {}
+    inventory_data['id'] = inventory.id
+    inventory_data['name'] = inventory.name
+    inventory_data['amount'] = inventory.amount
+
+    return jsonify({'inventory': inventory_data})
+
+
+@app.route('/inventory', methods=['POST'])
 @token_required
-def create_todo(current_attendant):
+def create_inventory(current_attendant):
     data = request.get_json()
-    new_todo = Todo(text=data['text'], complete=False, user_id=current_attendant.id)
-    db.session.add(new_todo)
+    new_inventory = Inventory(name=data['name'], amount=data['amount'], user_id=current_attendant.id)
+    db.session.add(new_inventory)
     db.session.commit()
 
-    return jsonify({'message': 'Todo created!'})
+    return jsonify({'message': 'Product created!'})
+ 
+#delete inventory
+@app.route('/inventory/<inventory_id>', methods=['DELETE'])
+@token_required
+def delete_inventory(current_attendant,inventory_id):
+
+    if not current_attendant.admin:
+        return jsonify({'message': 'You are not authorized to do that!'})
+
+    inventory = Inventory.query.filter_by(id=inventory_id).first()
+    if not inventory:
+        return jsonify({'message': 'Inventory not found'})
+    db.session.delete(inventory)
+    db.session.commit()
+
+    return jsonify({'message': 'Inventory deleted'})
 
 if __name__ == '__main__':
     app.run(debug=True)
